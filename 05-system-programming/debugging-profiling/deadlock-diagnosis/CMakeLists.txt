@@ -1,0 +1,1 @@
+add_program(deadlock_diagnosis)

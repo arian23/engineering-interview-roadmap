@@ -1,0 +1,34 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Go
+*.exe
+*.test
+*.out
+coverage.*
+vendor/
+go.work.sum
+
+# C / C++
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+build/
+cmake-build-*/
+
+# Python / notebooks
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# Secrets
+.env
+*.pem
+*.key
