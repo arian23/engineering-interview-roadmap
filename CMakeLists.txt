@@ -58,6 +58,7 @@ endfunction()
 # ---------------------------------------------------------------------------
 add_subdirectory(05-system-programming/concurrency-synchronization/bounded-queue)
 add_subdirectory(01-coding-fundamentals/data-structures/hash-maps/lru-cache)
+add_subdirectory(01-coding-fundamentals/data-structures/trees-graphs/binary-search-tree)
 add_subdirectory(06-networking/sockets/concurrent-tcp-server)
 add_subdirectory(05-system-programming/concurrency-synchronization/data-race-fix)
 add_subdirectory(04-system-design/scalability-performance/rate-limiter)
