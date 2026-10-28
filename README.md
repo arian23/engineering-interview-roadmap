@@ -44,18 +44,105 @@ The explanation of each design is in the exercise's `README.md` (1–4) or in th
 
 ### Build and run
 
-Requires a C++23 compiler (GCC 14+ or a recent Clang) and CMake 3.25+.
+#### Requirements
+
+| Tool | Version | Notes |
+|---|---|---|
+| CMake | 3.25 or newer | |
+| C++ compiler with C++23 support | **GCC 14+** (tested) | Clang 19+ and MSVC 17.10+ should work but have not been tested |
+| OS | macOS, Linux, or Windows via WSL2 | Exercises 3, 7 and 9 use POSIX APIs (sockets, `poll`, `getpid`), so a native Windows/MSVC build is not supported |
+
+The library features used are `std::print`, `std::expected`, `std::move_only_function`, `std::jthread`, `std::stop_token`
+and `std::latch`. A compiler or standard library that lacks any of them will fail to build.
+
+#### Step 1: install the tools
 
 ```bash
-# macOS with Homebrew GCC (works without accepting the Xcode license):
-cmake -S . -B build -DCMAKE_CXX_COMPILER=g++-14 \
-      -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
-# Linux:  cmake -S . -B build -DCMAKE_CXX_COMPILER=g++-14
+# macOS (Homebrew)
+brew install cmake gcc
 
-cmake --build build -j 8
-ctest --test-dir build --output-on-failure        # unit tests for exercises 1-5
+# Ubuntu / Debian (Ubuntu 24.04 or newer ships g++-14)
+sudo apt update && sudo apt install -y build-essential cmake g++-14
 
-./build/05-system-programming/processes-threads/worker-pool/worker_pool   # any program, by folder
+# Fedora (the default gcc is new enough)
+sudo dnf install -y gcc-c++ cmake
+
+# Arch Linux
+sudo pacman -S --needed base-devel cmake
 ```
 
-To build with sanitizers on Linux, add `-DSANITIZE=thread` or `-DSANITIZE=address,undefined`.
+**Windows:** install WSL2 with Ubuntu from an administrator PowerShell (`wsl --install -d Ubuntu`), open the
+Ubuntu terminal, and follow the Ubuntu / Debian instructions there.
+
+#### Step 2: configure
+
+Run from the repository root. The only platform-specific part is choosing the compiler.
+
+```bash
+# Linux (or WSL2): use g++-14 if your default g++ is older than 14
+cmake -S . -B build -DCMAKE_CXX_COMPILER=g++-14
+
+# Linux where the default g++ is already 14 or newer (e.g. Fedora, Arch)
+cmake -S . -B build
+
+# macOS with Homebrew GCC
+cmake -S . -B build -DCMAKE_CXX_COMPILER=g++-14
+```
+
+**macOS:** if the configure step fails with *"You have not agreed to the Xcode license agreements"*, either accept
+the license once (`sudo xcodebuild -license accept`) or point CMake at the Command Line Tools SDK instead:
+
+```bash
+cmake -S . -B build -DCMAKE_CXX_COMPILER=g++-14 \
+      -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+```
+
+Optional settings (add them to the configure command):
+
+| Option | Effect |
+|---|---|
+| `-DCMAKE_BUILD_TYPE=Release` | Optimised build. The default is `RelWithDebInfo` (optimised, with debug symbols) |
+| `-DCMAKE_BUILD_TYPE=Debug` | No optimisation, easiest to step through in a debugger |
+| `-DSANITIZE=thread` | ThreadSanitizer: reports data races (Linux, or Clang on macOS) |
+| `-DSANITIZE=address,undefined` | AddressSanitizer + UBSan: memory errors and undefined behaviour |
+| `-G Ninja` | Use Ninja instead of Make (faster builds, if Ninja is installed) |
+
+#### Step 3: build
+
+```bash
+cmake --build build --parallel
+```
+
+To build a single program, add `--target <name>` (names are in the table below).
+
+#### Step 4: run the tests and programs
+
+```bash
+ctest --test-dir build --output-on-failure    # unit tests (exercises 1-5)
+```
+
+Every program is built in the `build/` folder at the same path as its source folder:
+
+```bash
+./build/05-system-programming/processes-threads/worker-pool/worker_pool
+./build/06-networking/sockets/concurrent-tcp-server/concurrent_tcp_server_demo
+```
+
+| Exercise | Program | Unit tests |
+|---|---|---|
+| 1 Bounded queue | `bounded_queue_demo` | `bounded_queue_test` |
+| 2 LRU cache | `lru_cache_demo` | `lru_cache_test` |
+| 3 Concurrent TCP server | `concurrent_tcp_server_demo` (add `serve 9000` to run it interactively, then `nc 127.0.0.1 9000`) | `concurrent_tcp_server_test` |
+| 4 Data race fix | `data_race_fix_demo` | `data_race_fix_test` |
+| 5 Rate limiter | `rate_limiter_demo` | `rate_limiter_test` |
+| 6 Worker pool | `worker_pool` | – |
+| 7 Stream message framing | `stream_message_framing` | – |
+| 8 Producer-consumer with backpressure | `producer_consumer_backpressure` | – |
+| 9 Deadlock diagnosis | `deadlock_diagnosis` (add `hang` to create a real deadlock to inspect with a debugger) | – |
+| 10 Expiring cache | `expiring_cache` | – |
+
+#### Clean rebuild
+
+```bash
+rm -rf build      # then repeat steps 2 and 3
+```
