@@ -1,0 +1,1 @@
+add_program(strategy_pattern)

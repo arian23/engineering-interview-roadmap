@@ -1,0 +1,1 @@
+add_program(thread_pool_pattern)

@@ -1,0 +1,11 @@
+# Design patterns: one runnable program per folder (no unit tests).
+add_subdirectory(strategy)
+add_subdirectory(state)
+add_subdirectory(observer)
+add_subdirectory(adapter)
+add_subdirectory(factory)
+add_subdirectory(event-driven)
+add_subdirectory(raii)
+add_subdirectory(producer-consumer)
+add_subdirectory(thread-pool)
+add_subdirectory(resource-management)

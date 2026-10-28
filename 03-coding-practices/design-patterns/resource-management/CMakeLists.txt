@@ -1,0 +1,1 @@
+add_program(resource_management)
