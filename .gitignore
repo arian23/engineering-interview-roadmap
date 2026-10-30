@@ -1,6 +1,7 @@
 # OS / editors
 .DS_Store
 Thumbs.db
+~$*
 .vscode/
 .idea/
 *.swp

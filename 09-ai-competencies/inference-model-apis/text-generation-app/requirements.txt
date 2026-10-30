@@ -1,0 +1,5 @@
+# Exact versions this app was built and tested with (Python 3.13).
+streamlit==1.66.1
+langchain-core==1.7.3
+langchain-huggingface==1.2.3
+huggingface_hub==1.33.0

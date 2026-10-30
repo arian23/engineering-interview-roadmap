@@ -1,0 +1,7 @@
+# Virtual environment (recreate it with: python3 -m venv .venv)
+.venv/
+
+# Your real Hugging Face token. Never commit it.
+.streamlit/secrets.toml
+
+__pycache__/
