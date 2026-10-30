@@ -7,6 +7,7 @@ Hugging Face's servers; this app is only the user interface and the API calls. T
 | File | Purpose |
 |---|---|
 | [`app.py`](app.py) | The whole app: UI, model setup, prompt, generation |
+| [`TEACHING_GUIDE.md`](TEACHING_GUIDE.md) | Step-by-step lessons with the theory behind each step, exercises and a session plan, for teaching others |
 | [`requirements.txt`](requirements.txt) | Exact library versions the app was tested with |
 | [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example) | Template for storing your token in a file (optional) |
 | [`.gitignore`](.gitignore) | Keeps the virtual environment and your real token out of git |
