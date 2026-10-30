@@ -1,12 +1,8 @@
-# Simple text generation app (Hugging Face + LangChain + Streamlit)
+# Text Generation Playground (Hugging Face + LangChain + Streamlit)
 
 A small web app: type a prompt, choose a model, and get AI-generated text back. The model runs on
-Hugging Face's servers; this app is only the user interface and the API calls.
-
-This is a working, up-to-date rebuild of the app from the blog post
-[*Building a Simple Text Generation App with Hugging Face Model APIs*](https://medium.com/@jhonraza/building-a-simple-text-generation-app-with-hugging-face-model-apis-820a9859cc07)
-(Jhon Raza, January 2025), with the problems in the original code fixed. The fixes are listed
-[at the end](#what-was-changed-from-the-blog-post).
+Hugging Face's servers; this app is only the user interface and the API calls. The
+[design decisions](#design-decisions) section explains the main choices.
 
 | File | Purpose |
 |---|---|
@@ -56,8 +52,8 @@ pip freeze | grep -iE "streamlit|langchain|huggingface"   # versions saved in re
 | `langchain-huggingface` | LangChain's connector to Hugging Face models (`HuggingFaceEndpoint`, `ChatHuggingFace`) |
 | `huggingface_hub` | The underlying client that calls the Hugging Face API |
 
-The blog installs `langchain` instead of `langchain-huggingface`, so its import of `HuggingFaceEndpoint`
-fails. `.gitignore` excludes `.venv/` and `.streamlit/secrets.toml`.
+`HuggingFaceEndpoint` and `ChatHuggingFace` live in the separate `langchain-huggingface` package, not in
+`langchain` itself. `.gitignore` excludes `.venv/` and `.streamlit/secrets.toml`.
 
 ### Step 2: Get a Hugging Face API token
 
@@ -72,18 +68,19 @@ fails. `.gitignore` excludes `.venv/` and `.streamlit/secrets.toml`.
      huggingface.co and accept the licence (Llama requests are reviewed by Meta and can take hours; check the
      status at [settings/gated-repos](https://huggingface.co/settings/gated-repos)). One approval covers a
      whole group: "Meta's Llama 3.1 models & evals", "Google's Gemma models family".
-   - The blog's models were replaced: `Meta-Llama-3-8B-Instruct` and `gemma-2-27b-it` are now served by only
-     one provider (featherless-ai), and `SmolLM2-1.7B-Instruct` by none.
+   - Provider availability changes over time. Older models such as `Meta-Llama-3-8B-Instruct` and
+     `gemma-2-27b-it` are served by only one provider (featherless-ai), and `SmolLM2-1.7B-Instruct` by none,
+     which is why the app uses newer versions.
 
 The app accepts the token in three ways. The first one found is used:
 
 | Order | Where | Good for |
 |---|---|---|
-| 1 | The **sidebar** password box | Trying the app; the blog's approach |
+| 1 | The **sidebar** password box | Trying the app |
 | 2 | `.streamlit/secrets.toml` → `HF_TOKEN = "hf_..."` (copy it from `secrets.toml.example`) | Not retyping it every time |
 | 3 | The `HF_TOKEN` environment variable | Servers and deployment |
 
-The token is never printed or logged. The original code printed it to the terminal.
+The token is never printed or logged.
 
 ### Step 3: Build the interface
 
@@ -91,7 +88,7 @@ The token is never printed or logged. The original code printed it to the termin
 
 | Element | Streamlit call |
 |---|---|
-| Title and welcome text | `st.title`, `st.markdown` |
+| Title ("Text Generation Playground") and a one-line description | `st.title`, `st.markdown` |
 | Token box (shown as dots) | `st.sidebar.text_input(type="password")` |
 | **Max new tokens** slider, 50–500 | `st.sidebar.slider` |
 | **Temperature** slider, 0.1–1.0 | `st.sidebar.slider` |
@@ -124,12 +121,13 @@ chat_model = ChatHuggingFace(llm=llm)
 
 ```python
 PROMPT = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant. Answer the user's query clearly."),
+    ("system", "You are a friendly, knowledgeable writing assistant. Respond to the request below "
+               "accurately and concisely."),
     ("human", "{input_text}"),
 ])
 ```
 
-This is the blog's prompt, split into a **system** message (the assistant's role) and a **human**
+The prompt is split into a **system** message, which sets the assistant's role and tone, and a **human**
 message (what you typed). `{input_text}` is filled in with your prompt when the chain runs.
 
 ### Step 6: Chain everything and generate text
@@ -143,8 +141,8 @@ if st.button("Generate Text", type="primary"):
 ```
 
 - **`|` (LangChain Expression Language):** the template's output goes into the model, and the model's
-  reply goes into `StrOutputParser`, which turns it into plain text. This replaces the deprecated
-  `LLMChain` used in the blog.
+  reply goes into `StrOutputParser`, which turns it into plain text. This is LangChain's current way to
+  compose steps (the older `LLMChain` class is deprecated).
 - **Streaming:** `chain.stream(...)` yields the answer piece by piece, and `st.write_stream` shows each
   piece as it arrives. The answer appears in real time instead of all at once at the end.
 - **Errors:** missing token, empty prompt, rejected token (401), gated model (403), no provider for the
@@ -211,22 +209,22 @@ first real run with your token is the final check.
 
 ---
 
-## What was changed from the blog post
+## Design decisions
 
-| # | Problem in the original | Fix here |
-|---|---|---|
-| 1 | The token typed in the sidebar was saved but **never used**; the model read `st.secrets` instead, so the app failed without a `secrets.toml` | The sidebar token is used, with `secrets.toml` and `HF_TOKEN` as fall-backs |
-| 2 | `print(st.session_state.HUGGINGFACEHUB_API_TOKEN)` **printed the secret token** to the terminal | Removed; the token is never printed |
-| 3 | `LLMChain` is deprecated in LangChain | `prompt \| model \| StrOutputParser()` (LCEL) |
-| 4 | The install line missed `langchain-huggingface` (and had a typo, `huggingface_hubbash`) | Correct packages, versions pinned in `requirements.txt` |
-| 5 | `model_kwargs={"max_length": ...}` didn't control the answer length | `max_new_tokens=...` |
-| 6 | The temperature slider allowed 0.0, which the API rejects | The slider starts at 0.1 |
-| 7 | Instruct models received raw text | `ChatHuggingFace` + a chat prompt (system + user messages) |
-| 8 | The answer appeared only when complete | Streamed in real time with `st.write_stream` |
-| 9 | Errors showed raw exception text | Clear messages for 401 / 403 / 404 / 429 |
-| 10 | Only code fragments were shown, without imports | One complete, runnable `app.py` |
+| Decision | Why |
+|---|---|
+| The token is taken from the sidebar, then `secrets.toml`, then `HF_TOKEN` | Easy to try in the browser, convenient locally, and works on servers |
+| The token is never printed or logged; `secrets.toml` is git-ignored | API tokens are secrets: anyone with the token can spend your credits |
+| LCEL chain: `prompt \| model \| StrOutputParser()` | LangChain's current, composable style; `LLMChain` is deprecated |
+| `langchain-huggingface` with versions pinned in `requirements.txt` | The maintained Hugging Face integration; pinned versions make installs reproducible |
+| `max_new_tokens` for the length limit | It's the parameter the Hugging Face API actually uses for answer length |
+| Temperature slider starts at 0.1 | The API rejects a temperature of exactly 0 |
+| `ChatHuggingFace` with a chat prompt (system + user messages) | Instruct models answer much better with chat-formatted input than raw text |
+| Answers are streamed with `st.write_stream` | Text appears as it's generated instead of all at once at the end |
+| Clear messages for 401 / 402 / 403 / 404 / 429 | Tells the user what to do, plus Hugging Face's own message for detail |
+| Only models with several live providers, plus `check_access.py` | Fewer "no provider" failures, and a quick way to diagnose token and access problems |
 
-## Next steps (from the blog, still good ideas)
+## Next steps
 
 - **Run a model locally** with the `transformers` library: no API token and no network, but it needs a
   capable machine.

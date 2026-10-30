@@ -1,8 +1,7 @@
-"""Simple text generation app: Streamlit UI + LangChain + Hugging Face hosted models.
+"""Text generation playground: Streamlit UI + LangChain + Hugging Face hosted models.
 
-A corrected, up-to-date version of the app from the blog post
-"Building a Simple Text Generation App with Hugging Face Model APIs" (Jhon Raza, Jan 2025).
-See README.md for the step-by-step build and the list of fixes.
+Type a prompt, pick a model, and get generated text streamed back from Hugging Face Inference Providers.
+See README.md for the step-by-step build.
 
 Run with:  streamlit run app.py
 """
@@ -17,8 +16,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 # First two: open models (no licence to accept) that several Inference Providers serve.
 # Last two: gated models. Accept the licence on huggingface.co first (Llama 3.1 and the Gemma family each
 # have one approval that covers the whole group).
-# Changed from the blog: its Meta-Llama-3-8B-Instruct and gemma-2-27b-it are now served by only one provider
-# (featherless-ai), and SmolLM2-1.7B-Instruct by none, so they were replaced by their newer versions.
+# Every model here had at least two live providers when chosen; availability changes over time.
 MODEL_OPTIONS = [
     "Qwen/Qwen3-8B",
     "openai/gpt-oss-20b",
@@ -47,7 +45,8 @@ def token_from_config() -> str | None:
 # the instruction goes in the "system" message and the user's text in the "human" message.
 PROMPT = ChatPromptTemplate.from_messages(
     [
-        ("system", "You are a helpful assistant. Answer the user's query clearly."),
+        ("system", "You are a friendly, knowledgeable writing assistant. Respond to the request below "
+                   "accurately and concisely."),
         ("human", "{input_text}"),
     ]
 )
@@ -58,14 +57,14 @@ def build_chain(model_id: str, token: str, max_new_tokens: int, temperature: flo
     llm = HuggingFaceEndpoint(
         repo_id=model_id,
         task="text-generation",
-        max_new_tokens=max_new_tokens,  # the blog's model_kwargs={"max_length": ...} was ignored
+        max_new_tokens=max_new_tokens,  # length limit for the generated answer
         temperature=temperature,
         huggingfacehub_api_token=token,  # the token actually entered in the sidebar
         provider="auto",  # let Hugging Face pick an inference provider that serves this model
         timeout=120,
     )
     chat_model = ChatHuggingFace(llm=llm)  # sends proper chat messages instead of raw text
-    # LCEL pipe syntax: prompt -> model -> plain string. Replaces the deprecated LLMChain.
+    # LCEL pipe syntax: prompt -> model -> plain string.
     return PROMPT | chat_model | StrOutputParser()
 
 
@@ -97,12 +96,12 @@ def friendly_error(error: Exception) -> str:
 
 # ===================================================================== Step 3: the interface
 
-st.set_page_config(page_title="GenAI Playground", page_icon="🤖")
+st.set_page_config(page_title="Text Generation Playground", page_icon="✍️")
 
-st.title("Generative AI - Simple Text Generation")
+st.title("Text Generation Playground")
 st.markdown(
-    "Welcome to the **GenAI Playground**! Explore text generation with pre-trained language models "
-    "hosted by Hugging Face. Type a prompt and let the AI do the magic!"
+    "Pick an open-source language model, write a prompt, and watch the answer appear as it is generated. "
+    "The models run on Hugging Face Inference Providers; this app is the interface."
 )
 
 # Sidebar: token and model settings
@@ -129,7 +128,7 @@ temperature = st.sidebar.slider("Temperature", min_value=0.1, max_value=1.0, val
 
 # Main area: model choice and prompt
 selected_model = st.selectbox("Select a model for text generation:", MODEL_OPTIONS)
-prompt = st.text_area("Enter your prompt:", placeholder="Write a short story about hobbits...")
+prompt = st.text_area("Enter your prompt:", placeholder="Explain how a hash map works, in three sentences...")
 
 # ===================================================================== Step 6: generate
 
