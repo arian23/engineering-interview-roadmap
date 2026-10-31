@@ -3,3 +3,4 @@ streamlit==1.66.1
 langchain-core==1.7.3
 langchain-huggingface==1.2.3
 huggingface_hub==1.33.0
+langchain-ollama==1.1.0   # local models through Ollama (also installs the ollama and httpx packages app.py imports)

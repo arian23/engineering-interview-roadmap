@@ -1,6 +1,7 @@
-"""Text generation playground: Streamlit UI + LangChain + Hugging Face hosted models.
+"""Text generation playground: Streamlit UI + LangChain + a local or hosted language model.
 
-Type a prompt, pick a model, and get generated text streamed back from Hugging Face Inference Providers.
+Type a prompt, pick a model, and get generated text streamed back, either from a model running on this
+computer through Ollama (free, no token, no internet) or from Hugging Face Inference Providers.
 See README.md for the step-by-step build.
 
 Run with:  streamlit run app.py
@@ -8,11 +9,20 @@ Run with:  streamlit run app.py
 
 import os
 
+import httpx
+import ollama
 import streamlit as st
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langchain_ollama import ChatOllama
 
+LOCAL = "Local (Ollama)"
+HUGGING_FACE = "Hugging Face (hosted)"
+SOURCES = [LOCAL, HUGGING_FACE]
+OLLAMA_URL = "http://localhost:11434"
+
+# Hugging Face models.
 # First two: open models (no licence to accept) that several Inference Providers serve.
 # Last two: gated models. Accept the licence on huggingface.co first (Llama 3.1 and the Gemma family each
 # have one approval that covers the whole group).
@@ -39,6 +49,15 @@ def token_from_config() -> str | None:
     return os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACEHUB_API_TOKEN")
 
 
+@st.cache_data(ttl=30)
+def local_models() -> list[str]:
+    """Models downloaded into the local Ollama (e.g. after `ollama pull llama3.2`); empty if Ollama is not running."""
+    try:
+        return [m.model for m in ollama.Client(host=OLLAMA_URL).list().models]
+    except Exception:
+        return []
+
+
 # ===================================================================== Steps 4-6: model, prompt, chain
 
 # Step 5: the prompt template. A chat template, because these instruct models are chat models:
@@ -52,8 +71,14 @@ PROMPT = ChatPromptTemplate.from_messages(
 )
 
 
-def build_chain(model_id: str, token: str, max_new_tokens: int, temperature: float):
-    """Step 4 + 6: connect to the hosted model and chain it with the prompt."""
+def build_chain(source: str, model_id: str, token: str | None, max_new_tokens: int, temperature: float):
+    """Step 4 + 6: connect to the model and chain it with the prompt."""
+    if source == LOCAL:
+        # A chat model served by Ollama on this computer. num_predict is Ollama's name for max new tokens.
+        chat_model = ChatOllama(model=model_id, base_url=OLLAMA_URL,
+                                num_predict=max_new_tokens, temperature=temperature)
+        return PROMPT | chat_model | StrOutputParser()
+
     llm = HuggingFaceEndpoint(
         repo_id=model_id,
         task="text-generation",
@@ -70,6 +95,13 @@ def build_chain(model_id: str, token: str, max_new_tokens: int, temperature: flo
 
 def friendly_error(error: Exception) -> str:
     """Turns common API failures into advice the user can act on, followed by Hugging Face's own message."""
+    # Local model errors, recognised by exception type rather than by searching the message text.
+    if isinstance(error, (httpx.ConnectError, ConnectionError)):
+        return (f"Ollama is not running at {OLLAMA_URL}. Start the Ollama app (or run `ollama serve`) "
+                "and try again.")
+    if isinstance(error, ollama.ResponseError) and error.status_code == 404:
+        return f"Ollama does not have this model yet. Download it with `ollama pull <model>`. ({error.error})"
+
     text = str(error)
     # Keep the informative lines; drop the request ID and the generic "for more information" link.
     useful = [line.strip() for line in text.splitlines()
@@ -101,24 +133,30 @@ st.set_page_config(page_title="Text Generation Playground", page_icon="✍️")
 st.title("Text Generation Playground")
 st.markdown(
     "Pick an open-source language model, write a prompt, and watch the answer appear as it is generated. "
-    "The models run on Hugging Face Inference Providers; this app is the interface."
+    "The model runs either on this computer (Ollama) or on Hugging Face Inference Providers; "
+    "this app is the interface."
 )
 
-# Sidebar: token and model settings
+# Sidebar: where the model runs, the token (Hugging Face only) and model settings
 st.sidebar.title("Model Settings")
-entered_token = st.sidebar.text_input(
-    "Hugging Face API Token",
-    type="password",  # shown as dots; never printed or logged
-    help="Create one at https://huggingface.co/settings/tokens",
-)
-configured_token = token_from_config()
-token = entered_token.strip() or configured_token
-if entered_token:
-    st.sidebar.success("Using the token entered above.")
-elif configured_token:
-    st.sidebar.info("Using the token from secrets.toml / HF_TOKEN.")
-else:
-    st.sidebar.warning("Enter your token to start.")
+source = st.sidebar.radio("Model source", SOURCES,
+                          help="Local: free, private, no token or internet needed (requires Ollama). "
+                               "Hugging Face: larger hosted models, needs an API token.")
+token = None
+if source == HUGGING_FACE:
+    entered_token = st.sidebar.text_input(
+        "Hugging Face API Token",
+        type="password",  # shown as dots; never printed or logged
+        help="Create one at https://huggingface.co/settings/tokens",
+    )
+    configured_token = token_from_config()
+    token = entered_token.strip() or configured_token
+    if entered_token.strip():
+        st.sidebar.success("Using the token entered above.")
+    elif configured_token:
+        st.sidebar.info("Using the token from secrets.toml / HF_TOKEN.")
+    else:
+        st.sidebar.warning("Enter your token to start.")
 
 st.sidebar.markdown("Configure the model settings for text generation.")
 max_new_tokens = st.sidebar.slider("Max new tokens", min_value=50, max_value=500, value=200, step=10,
@@ -127,19 +165,28 @@ temperature = st.sidebar.slider("Temperature", min_value=0.1, max_value=1.0, val
                                 help="Lower = more focused and repeatable, higher = more varied and creative.")
 
 # Main area: model choice and prompt
-selected_model = st.selectbox("Select a model for text generation:", MODEL_OPTIONS)
+if source == LOCAL:
+    model_options = local_models()
+    if not model_options:
+        st.warning(f"No local models found. Make sure Ollama is running ({OLLAMA_URL}) and download a model, "
+                   "e.g. `ollama pull llama3.2`.")
+else:
+    model_options = MODEL_OPTIONS
+selected_model = st.selectbox("Select a model for text generation:", model_options)
 prompt = st.text_area("Enter your prompt:", placeholder="Explain how a hash map works, in three sentences...")
 
 # ===================================================================== Step 6: generate
 
 if st.button("Generate Text", type="primary"):
-    if not token:
+    if source == HUGGING_FACE and not token:
         st.error("Please enter your Hugging Face API token in the sidebar.")
+    elif not selected_model:
+        st.error("No model available. Start Ollama and download a model first.")
     elif not prompt.strip():
         st.error("Please enter a valid prompt.")
     else:
         try:
-            chain = build_chain(selected_model, token, max_new_tokens, temperature)
+            chain = build_chain(source, selected_model, token, max_new_tokens, temperature)
             st.subheader("Generated Text:")
             with st.spinner("Generating text..."):
                 # Stream the answer token by token, so it appears in real time.

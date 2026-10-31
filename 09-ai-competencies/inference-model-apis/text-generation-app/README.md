@@ -1,7 +1,9 @@
-# Text Generation Playground (Hugging Face + LangChain + Streamlit)
+# Text Generation Playground (Hugging Face / Ollama + LangChain + Streamlit)
 
-A small web app: type a prompt, choose a model, and get AI-generated text back. The model runs on
-Hugging Face's servers; this app is only the user interface and the API calls. The
+A small web app: type a prompt, choose a model, and get AI-generated text back. The model runs either
+**on your own computer** through [Ollama](https://ollama.com) (free, no token, no internet) or **on
+Hugging Face's servers** (larger models, needs an API token); this app is only the user interface and
+the model calls. [How to run it](#how-to-run-it-local-or-hugging-face) covers both. The
 [design decisions](#design-decisions) section explains the main choices.
 
 | File | Purpose |
@@ -17,18 +19,21 @@ Hugging Face's servers; this app is only the user interface and the API calls. T
 ## How it works
 
 ```
- Browser (localhost:8501)            app.py (Streamlit)                       Hugging Face
- ┌──────────────────────┐   input   ┌───────────────────────────────┐  HTTPS  ┌──────────────────┐
- │ token, model, prompt │ ────────► │ ChatPromptTemplate            │ ──────► │ Inference        │
- │ sliders, Generate    │           │   | ChatHuggingFace           │         │ Providers run    │
- │ generated text       │ ◄──────── │   | StrOutputParser  (stream) │ ◄────── │ the model        │
- └──────────────────────┘  tokens   └───────────────────────────────┘ tokens  └──────────────────┘
+ Browser (localhost:8501)            app.py (Streamlit)                        Model source
+ ┌──────────────────────┐   input   ┌─────────────────────────────────┐        ┌──────────────────────┐
+ │ source, model,       │ ────────► │ ChatPromptTemplate              │ local  │ Ollama on this PC    │
+ │ prompt, sliders,     │           │   | ChatOllama  or              │ ─────► │ localhost:11434      │
+ │ (token), Generate    │           │   | ChatHuggingFace             │ HTTPS  │ Hugging Face         │
+ │ generated text       │ ◄──────── │   | StrOutputParser   (stream)  │ ─────► │ Inference Providers  │
+ └──────────────────────┘  tokens   └─────────────────────────────────┘ ◄───── └──────────────────────┘
 ```
 
 - **Streamlit** turns the Python script into a web page. Every widget change re-runs the script from the top.
-- **LangChain** joins the prompt template, the model and the output parser into one chain.
-- **Hugging Face Inference Providers** run the model. Your API token proves who you are, and usage is
-  billed against your account's free monthly credits.
+- **LangChain** joins the prompt template, the model and the output parser into one chain. Only the model
+  object differs between the two sources.
+- **Ollama** (Local mode) runs a downloaded model on your own CPU/GPU: free and private, no token.
+- **Hugging Face Inference Providers** (Hugging Face mode) run the model on their servers. Your API token
+  proves who you are, and usage is billed against your account's free monthly credits.
 
 ---
 
@@ -151,6 +156,10 @@ if st.button("Generate Text", type="primary"):
 
 ### Step 7: Run the app
 
+The commands below are for macOS/Linux with the Hugging Face model source. For Windows, and for running
+a llama model locally with Ollama, see [How to run it](#how-to-run-it-local-or-hugging-face), which has
+step-by-step instructions for both model sources on Windows, macOS and Linux.
+
 ```bash
 source .venv/bin/activate
 streamlit run app.py
@@ -167,14 +176,261 @@ Use `streamlit run`, not `python app.py`. Plain `python` won't start a web page.
 
 ---
 
-## Quick start (if you just want to run it)
+## How to run it: local or Hugging Face
+
+One app, two places the model can run. You choose in the sidebar under **Model source**, and can switch
+at any time without restarting:
+
+| | **Local (Ollama)** (default) | **Hugging Face (hosted)** |
+|---|---|---|
+| Where the model runs | Your own computer | Hugging Face Inference Providers |
+| Needs | Ollama + a downloaded model (e.g. llama3.2) | A Hugging Face API token |
+| Internet | Only to download the model, once | Needed for every request |
+| Cost | Free | Free monthly credits, then paid |
+| Models | Whatever you `ollama pull` (llama3.2 is 3B parameters) | Qwen3 8B, gpt-oss 20B, Llama 3.1 8B, Gemma 3 27B |
+| Answer quality / speed | Simpler answers; speed depends on your CPU/GPU | Usually better answers from larger models |
+
+The chain is the same in both modes; only the model object changes (`ChatOllama` or `ChatHuggingFace`).
+
+Jump to your case:
+
+| | Windows | macOS | Linux |
+|---|---|---|---|
+| **Step 0:** install the app (needed for both) | [Windows](#step-0-on-windows) | [macOS](#step-0-on-macos) | [Linux](#step-0-on-linux) |
+| **Scenario A:** llama running locally with Ollama | [Windows](#scenario-a-on-windows) | [macOS](#scenario-a-on-macos) | [Linux](#scenario-a-on-linux) |
+| **Scenario B:** a model called with a Hugging Face API token | [Windows](#scenario-b-on-windows) | [macOS](#scenario-b-on-macos) | [Linux](#scenario-b-on-linux) |
+
+---
+
+### Step 0: install the app (once, needed for both scenarios)
+
+You need **Python 3.10 or newer**. Check with `python --version` (Windows) or `python3 --version`
+(macOS/Linux).
+
+#### Step 0 on Windows
+
+Run in **PowerShell**. The virtual environment goes at a short path such as `C:\venvs\textgen`, because
+this folder is nested deeply enough that Windows' 260-character path limit makes `pip install streamlit`
+fail inside a `.venv` here.
+
+```powershell
+cd <path-to>\09-ai-competencies\inference-model-apis\text-generation-app
+python -m venv C:\venvs\textgen
+C:\venvs\textgen\Scripts\pip install -r requirements.txt
+```
+
+If `python` is not found, install it with `winget install Python.Python.3.12`, then open a new
+PowerShell window.
+
+#### Step 0 on macOS
+
+Run in **Terminal**:
 
 ```bash
-cd 09-ai-competencies/inference-model-apis/text-generation-app
-python3 -m venv .venv && source .venv/bin/activate
+cd <path-to>/09-ai-competencies/inference-model-apis/text-generation-app
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-streamlit run app.py
 ```
+
+If `python3` is not found, install it with `brew install python` (or from python.org).
+
+#### Step 0 on Linux
+
+Run in a **terminal**:
+
+```bash
+cd <path-to>/09-ai-competencies/inference-model-apis/text-generation-app
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+On Debian/Ubuntu, if `python3 -m venv` fails, install the venv module first:
+`sudo apt install python3-venv` (Fedora: `sudo dnf install python3`).
+
+---
+
+### Scenario A: llama running locally with Ollama
+
+No API token and no internet are needed once the model is downloaded. Ollama serves the model at
+`http://localhost:11434`, and the app talks to it there.
+
+#### Scenario A on Windows
+
+1. **Install Ollama** (once), in PowerShell:
+   ```powershell
+   winget install Ollama.Ollama
+   ```
+   or download the installer from [ollama.com/download](https://ollama.com/download). Ollama starts
+   automatically and keeps running in the system tray (the llama icon).
+2. **Download the model** (once, about 2 GB). Open a **new** PowerShell window so `ollama` is found:
+   ```powershell
+   ollama pull llama3.2
+   ollama list                 # llama3.2:latest should be listed
+   ```
+3. **Start the app**, from the project folder:
+   ```powershell
+   C:\venvs\textgen\Scripts\streamlit run app.py
+   ```
+4. **In the browser** (http://localhost:8501): **Model source** → *Local (Ollama)* (the default) →
+   model `llama3.2:latest` → type a prompt → **Generate Text**.
+
+If the app says Ollama is not running: start **Ollama** from the Start menu (the llama icon appears in
+the tray), or run `ollama serve` in a separate PowerShell window.
+
+#### Scenario A on macOS
+
+1. **Install Ollama** (once): download the app from [ollama.com/download](https://ollama.com/download),
+   move it to *Applications* and open it. It keeps running in the menu bar (the llama icon).
+   *With Homebrew instead:* `brew install ollama`, then start the server with `brew services start ollama`
+   (or run `ollama serve` in a separate Terminal window). The Homebrew version does not start by itself.
+2. **Download the model** (once, about 2 GB):
+   ```bash
+   ollama pull llama3.2
+   ollama list                 # llama3.2:latest should be listed
+   ```
+3. **Start the app**, from the project folder:
+   ```bash
+   source .venv/bin/activate
+   streamlit run app.py
+   ```
+4. **In the browser** (http://localhost:8501): **Model source** → *Local (Ollama)* (the default) →
+   model `llama3.2:latest` → type a prompt → **Generate Text**.
+
+If the app says Ollama is not running: open the Ollama app, or run `ollama serve` /
+`brew services start ollama`.
+
+#### Scenario A on Linux
+
+1. **Install Ollama** (once), with the official install script:
+   ```bash
+   curl -fsSL https://ollama.com/install.sh | sh
+   ```
+   It installs Ollama as a **systemd service** that starts automatically. Check it with
+   `systemctl status ollama`.
+2. **Download the model** (once, about 2 GB):
+   ```bash
+   ollama pull llama3.2
+   ollama list                 # llama3.2:latest should be listed
+   ```
+3. **Start the app**, from the project folder:
+   ```bash
+   source .venv/bin/activate
+   streamlit run app.py
+   ```
+4. **In the browser** (http://localhost:8501): **Model source** → *Local (Ollama)* (the default) →
+   model `llama3.2:latest` → type a prompt → **Generate Text**.
+
+If the app says Ollama is not running: `sudo systemctl start ollama`, or run `ollama serve` in a
+separate terminal (on systems without systemd).
+
+---
+
+### Scenario B: a model called with a Hugging Face API token
+
+The model runs on Hugging Face's servers; Ollama is not needed. Get a token first, as described in
+[Step 2](#step-2-get-a-hugging-face-api-token) (fine-grained with *Make calls to Inference Providers*,
+or *Read*). It starts with `hf_`. Treat it like a password.
+
+There are three ways to give the app the token; the first one found is used:
+
+| Way | Good for |
+|---|---|
+| **Sidebar** password box in the app | Trying it out; nothing is saved |
+| `.streamlit/secrets.toml` file | Not retyping it every time (the file is git-ignored) |
+| `HF_TOKEN` environment variable | Servers and deployment |
+
+The steps below show all three for each platform; pick one.
+
+#### Scenario B on Windows
+
+1. **Give the app your token**, choosing one way, in PowerShell from the project folder:
+   - *Sidebar:* nothing to do now; paste it in the app in step 3.
+   - *secrets.toml:*
+     ```powershell
+     Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
+     notepad .streamlit\secrets.toml      # replace hf_your_token_here with your token, save
+     ```
+   - *Environment variable,* for this PowerShell window only:
+     ```powershell
+     $env:HF_TOKEN = "hf_..."
+     ```
+     or permanently, for new windows: `setx HF_TOKEN "hf_..."`, then open a new PowerShell window.
+2. **Start the app**, from the project folder:
+   ```powershell
+   C:\venvs\textgen\Scripts\streamlit run app.py
+   ```
+3. **In the browser** (http://localhost:8501): **Model source** → *Hugging Face (hosted)* → paste the
+   token in **Hugging Face API Token** (unless you used secrets.toml / `HF_TOKEN`; the sidebar then says
+   which token is in use) → pick a model, starting with `Qwen/Qwen3-8B` or `openai/gpt-oss-20b` →
+   type a prompt → **Generate Text**.
+4. **If a call is denied**, diagnose the token, licences and providers:
+   ```powershell
+   C:\venvs\textgen\Scripts\python check_access.py
+   ```
+
+#### Scenario B on macOS
+
+1. **Give the app your token**, choosing one way, in Terminal from the project folder:
+   - *Sidebar:* nothing to do now; paste it in the app in step 3.
+   - *secrets.toml:*
+     ```bash
+     cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+     open -e .streamlit/secrets.toml       # replace hf_your_token_here with your token, save
+     ```
+   - *Environment variable,* for this Terminal window only. `read -s` keeps the token out of your shell
+     history:
+     ```bash
+     read -s HF_TOKEN && export HF_TOKEN      # paste the token, press Enter (nothing is shown)
+     ```
+     To make it permanent, add `export HF_TOKEN="hf_..."` to `~/.zshrc` and open a new Terminal window.
+2. **Start the app**, from the project folder:
+   ```bash
+   source .venv/bin/activate
+   streamlit run app.py
+   ```
+3. **In the browser** (http://localhost:8501): **Model source** → *Hugging Face (hosted)* → paste the
+   token in **Hugging Face API Token** (unless you used secrets.toml / `HF_TOKEN`) → pick a model,
+   starting with `Qwen/Qwen3-8B` or `openai/gpt-oss-20b` → type a prompt → **Generate Text**.
+4. **If a call is denied:** `.venv/bin/python check_access.py`
+
+#### Scenario B on Linux
+
+1. **Give the app your token**, choosing one way, in a terminal from the project folder:
+   - *Sidebar:* nothing to do now; paste it in the app in step 3.
+   - *secrets.toml:*
+     ```bash
+     cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+     nano .streamlit/secrets.toml          # replace hf_your_token_here with your token, save (Ctrl+O, Ctrl+X)
+     ```
+   - *Environment variable,* for this terminal only. `read -s` keeps the token out of your shell
+     history:
+     ```bash
+     read -s HF_TOKEN && export HF_TOKEN      # paste the token, press Enter (nothing is shown)
+     ```
+     To make it permanent, add `export HF_TOKEN="hf_..."` to `~/.bashrc` and open a new terminal.
+2. **Start the app**, from the project folder:
+   ```bash
+   source .venv/bin/activate
+   streamlit run app.py
+   ```
+3. **In the browser** (http://localhost:8501): **Model source** → *Hugging Face (hosted)* → paste the
+   token in **Hugging Face API Token** (unless you used secrets.toml / `HF_TOKEN`) → pick a model,
+   starting with `Qwen/Qwen3-8B` or `openai/gpt-oss-20b` → type a prompt → **Generate Text**.
+4. **If a call is denied:** `.venv/bin/python check_access.py`
+
+---
+
+### Using both, stopping the app
+
+- **Compare the two:** with Ollama running and a token provided, run a prompt in one mode, switch
+  **Model source**, and run the same prompt again. No restart is needed.
+- **Stop the app:** press **Ctrl+C** in the terminal where `streamlit run` is running.
+- **First run only:** Streamlit may wait in the terminal at an **"Email:"** question before the page
+  loads. Press **Enter** to skip it.
+- **Stop Ollama** when you don't need it: Windows/macOS: quit it from the tray / menu-bar icon;
+  Linux: `sudo systemctl stop ollama`.
 
 ## The settings explained
 
@@ -188,6 +444,9 @@ streamlit run app.py
 
 | Message | Cause | Fix |
 |---|---|---|
+| "No local models found" / "Ollama is not running" (Local mode) | Ollama isn't installed or isn't running | Start the Ollama app (or run `ollama serve`); check with `ollama list` |
+| "Ollama does not have this model yet" (Local mode) | The model hasn't been downloaded | `ollama pull <model>`, e.g. `ollama pull llama3.2` |
+| `pip install` fails with "The filename or extension is too long" (Windows) | 260-character path limit inside `.venv` | Create the virtual environment at a short path, e.g. `C:\venvs\textgen` (see [How to run it](#how-to-run-it-local-or-hugging-face)) |
 | "The API token was rejected (401)" | Wrong or incomplete token | Copy the whole token again; create a new one if needed |
 | "Access denied (403)" | Licence request not approved yet, or the token lacks permission | Check [settings/gated-repos](https://huggingface.co/settings/gated-repos); give the token the "Make calls to Inference Providers" permission; run `.venv/bin/python check_access.py` to see which |
 | "No inference provider you have enabled serves this model" | No provider runs this model, or the providers that do are disabled in your account | Pick another model, or enable more providers at [settings/inference-providers](https://huggingface.co/settings/inference-providers) |
@@ -204,6 +463,7 @@ streamlit run app.py
 | The real `HuggingFaceEndpoint` and `ChatHuggingFace` accept the app's settings | Built with `max_new_tokens`, `temperature`, `provider` as set |
 | UI flows, driven by Streamlit's `AppTest` with a stand-in model replacing the network call | No token → error · empty prompt → error · token + prompt → answer shown · rejected token → friendly 401 message · `HF_TOKEN` variable used when the sidebar is empty |
 | The values from the sidebar reach the model | Slider settings 120 tokens / 0.3, and the sidebar token, were passed through |
+| Local mode against a real Ollama (llama3.2), driven by `AppTest` | Local is the default with no token box · installed models listed · a real answer streamed · empty prompt rejected · Hugging Face mode still shows its 4 models and requires a token · "Ollama not running" and "model not downloaded" messages shown |
 
 **Not verified:** an actual call to Hugging Face. No API token was available when this was built. The
 first real run with your token is the final check.
