@@ -47,8 +47,8 @@ A virtual environment keeps this project's libraries separate from the rest of y
 mkdir text-generation-app && cd text-generation-app
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install streamlit langchain-core langchain-huggingface huggingface_hub
-pip freeze | grep -iE "streamlit|langchain|huggingface"   # versions saved in requirements.txt
+pip install streamlit langchain-core langchain-huggingface huggingface_hub langchain-ollama
+pip freeze | grep -iE "streamlit|langchain|huggingface|ollama"   # versions saved in requirements.txt
 ```
 
 | Library | Role |
@@ -57,9 +57,14 @@ pip freeze | grep -iE "streamlit|langchain|huggingface"   # versions saved in re
 | `langchain-core` | Prompt templates, chains (`prompt \| model \| parser`), output parsers |
 | `langchain-huggingface` | LangChain's connector to Hugging Face models (`HuggingFaceEndpoint`, `ChatHuggingFace`) |
 | `huggingface_hub` | The underlying client that calls the Hugging Face API |
+| `langchain-ollama` | LangChain's connector to models running locally in Ollama (`ChatOllama`); used by the *Local (Ollama)* model source |
+| `ollama` | The client that talks to the local Ollama server. Installed automatically with `langchain-ollama`; the app uses it to list the downloaded models |
 
-`HuggingFaceEndpoint` and `ChatHuggingFace` live in the separate `langchain-huggingface` package, not in
-`langchain` itself. `.gitignore` excludes `.venv/` and `.streamlit/secrets.toml`.
+`HuggingFaceEndpoint` and `ChatHuggingFace` live in the separate `langchain-huggingface` package, and
+`ChatOllama` in `langchain-ollama`, not in `langchain` itself. `langchain-ollama` only connects to Ollama;
+Ollama itself (the program that runs the model) is installed separately, as described in
+[Scenario A](#scenario-a-llama-running-locally-with-ollama). `.gitignore` excludes `.venv/` and
+`.streamlit/secrets.toml`.
 
 ### Step 2: Get a Hugging Face API token
 
